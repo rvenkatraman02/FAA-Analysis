@@ -1,0 +1,122 @@
+---
+title: "Investigating Taxi Out"
+author: "Fred Lindsey"
+date: "2024-07-18"
+output: html_document
+---
+
+
+```{r include=FALSE}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r}
+df = read.csv("../Data_Files/Flights_train.csv")
+head(df)
+```
+
+```{r}
+# Plot histogram of Departure Delay Minutes with logarithmic scale on y-axis
+dep_dist <- ggplot(data=df, aes(x=DepDelayMinutes)) + geom_histogram(bins=100) + scale_y_log10()
+dep_dist
+```
+
+
+```{r}
+# Plot histogram of Taxi Out time
+taxi_dist <- ggplot(data=df, aes(x=TaxiOut)) + geom_histogram(bins=100)
+taxi_dist
+```
+Note: there's going to be a more explainable and interpretable signal in the data if outliers/influential points are removed from these two variables, TaxiOut and DepDelay. Start by looking at the % of data for each variable that exists beyond a certain point - 50 mins for TaxiOut, and 1500 mins for DepDelay. Then we can look at the scatterplot of those two data subsets for a more concrete relationship
+
+
+```{r}
+# Filter dataset to remove outliers from TaxiOut and DepDelayMinutes
+delay_and_taxi_subset <- df %>% filter(TaxiOut < 51, DepDelayMinutes < 1501)
+
+nrow(delay_and_taxi_subset)
+nrow(df)
+```
+
+
+# Plot before manually removing outliers
+```{r}
+# Scatter plot of TaxiOut vs. DepDelayMinutes with color representing Airline
+taxi_v_delay <- ggplot(data=df, aes(x=TaxiOut, y=DepDelayMinutes, color=factor(Airline))) + 
+  geom_point() + 
+  labs(title = "TaxiOut vs. DepDelay",
+       x = "TaxiOut (minutes)",
+       y = "Departure Delay (minutes)")
+
+taxi_v_delay
+```
+
+# Plot after manually removing outliers
+```{r}
+# Scatter plot of TaxiOut vs. DepDelayMinutes for filtered data with color representing Airline
+taxi_v_delay_v2 <- ggplot(data=delay_and_taxi_subset, aes(x=TaxiOut, y=DepDelayMinutes, color=factor(Airline))) + 
+  geom_point() + 
+  labs(title = "TaxiOut vs. DepDelay",
+       x = "TaxiOut (minutes)",
+       y = "Departure Delay (minutes)")
+
+taxi_v_delay_v2
+```
+
+# Plot by airline using facet_wrap
+```{r}
+# Scatter plot of TaxiOut vs. DepDelayMinutes for filtered data, faceted by Airline
+taxi_v_delay_facet <- ggplot(data=delay_and_taxi_subset, aes(x=TaxiOut, y=DepDelayMinutes)) + 
+  geom_point() + 
+  labs(title = "TaxiOut vs. DepDelay",
+       x = "TaxiOut (minutes)",
+       y = "Departure Delay (minutes)") + 
+  facet_wrap(~Airline)
+
+taxi_v_delay_facet
+```
+
+# Plot with linear model
+```{r}
+# Scatter plot with linear model fit line for TaxiOut vs. DepDelayMinutes, faceted by Airline
+ggplot(data=delay_and_taxi_subset, aes(x = TaxiOut, y = DepDelayMinutes)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "TaxiOut vs. DepDelay",
+       x = "TaxiOut (minutes)",
+       y = "Departure Delay (minutes)") + 
+  facet_wrap(~Airline)
+```
+
+# Plot with linear model without faceting
+```{r}
+# Scatter plot with linear model fit line for TaxiOut vs. DepDelayMinutes without faceting
+ggplot(data=delay_and_taxi_subset, aes(x = TaxiOut, y = DepDelayMinutes)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "TaxiOut vs. DepDelay",
+       x = "TaxiOut (minutes)",
+       y = "Departure Delay (minutes)")
+```
+
+# Correlation analysis
+```{r}
+cor.test(delay_and_taxi_subset$TaxiOut, delay_and_taxi_subset$DepDelayMinutes)
+```
+
+```{r}
+cor.test(delay_and_taxi_subset$DepDelayMinutes,delay_and_taxi_subset$TaxiOut)
+```
+
+```{r}
+cor.test(df$TaxiOut, df$DepDelayMinutes)
+```
+**Takeaway: there is a very weak, negative correlation between TaxiOut Time, and DepDelayMinutes**
+
+# Linear model analysis
+```{r}
+# Linear model of DepDelayMinutes as a function of Airline and TaxiOut interaction
+temp_lm <- lm(DepDelayMinutes ~ factor(Airline)*TaxiOut, data=df)
+plot(temp_lm)
+```

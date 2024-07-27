@@ -1,0 +1,87 @@
+---
+title: "Model Building Stepwise"
+author: "Sarah Arnold"
+date: "2024-07-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(MASS)
+```
+
+
+```{r}
+# Read the training dataset
+train <- read.csv("../Data_Files/Flights_Train.csv")
+
+# Convert specified columns to factors
+train <- train %>% 
+  mutate(across(c(Year, Quarter, DayofMonth, DayOfWeek, CarrierDelay_flag,
+                  WeatherDelay_flag, NASDelay_flag, SecurityDelay_flag, 
+                  LateAircraftDelay_flag), factor))
+```
+
+# Stepwise Model
+```{r}
+# Build a full linear model excluding certain delay columns
+full.model <- lm(DepDelayMinutes ~ . - AirTime -CarrierDelay - WeatherDelay - NASDelay - 
+                                       SecurityDelay - LateAircraftDelay, 
+                                       data = train)
+
+# Build an empty linear model with only an intercept
+empty.model <- lm(DepDelayMinutes ~ 1, data = train)
+
+# Perform stepwise model selection based on p-value
+step.pval.model <- step(empty.model, 
+                        scope = list(lower = empty.model, 
+                                    upper = full.model), 
+                        direction = "both", 
+                        k = qchisq(0.00001, 1, lower.tail = FALSE))
+```
+
+# MLR Selected Model
+```{r}
+# Multiple linear regression model with selected predictors
+mlr <- lm(DepDelayMinutes ~ CarrierDelay_flag + LateAircraftDelay_flag + 
+            WeatherDelay_flag + Airline + TaxiOut + SecurityDelay_flag + 
+            DepTime + DepTimeBlk + Origin + Year + Distance, data = train)
+# Display summary of the model
+summary(mlr)
+
+# Plot diagnostic plots for the model
+plot(mlr)
+
+```
+
+# Look for transformations
+```{r}
+# Perform Box-Cox transformation on the model
+boxcox(mlr)
+```
+
+# Reduce MLR Model
+```{r}
+# Multiple linear regression model with a reduced set of predictors
+mlr2 <- lm(DepDelayMinutes ~ Airline + TaxiOut + DepTime + DepTimeBlk + 
+                            Origin + Year + Distance, data = train)
+# Display summary of the model
+summary(mlr2)
+
+```
+
+# Look at Model Assumptions
+```{r}
+# Multiple linear regression model with a different set of predictors
+mlr3 <- lm(DepDelayMinutes ~ Airline + TaxiOut + DepTime + DayOfWeek + DayofMonth +
+            Origin + Year + Distance, data = train)
+# Display summary of the model
+summary(mlr3)
+
+# Q-Q plot for residuals of the model
+qqnorm(residuals(mlr3))
+# Add a reference line to the Q-Q plot
+qqline(residuals(mlr3), col = "red")
+```
+
