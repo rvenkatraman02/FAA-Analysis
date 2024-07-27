@@ -1,0 +1,76 @@
+---
+title: "Diversions EDA"
+author: "Sarah Arnold"
+date: "2024-07-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+# reading in the data 
+flights <- read.csv("../Data_Files/Flights_Wrangled_Old.csv")
+```
+
+```{r}
+# viewing data/variables 
+head(flights)
+str(flights)
+```
+
+# Exploring Diversions
+```{r}
+# non-diverted flights 
+non_div <- flights %>%
+  filter(Diverted == 0)
+
+# diverted flights
+div <- flights %>% 
+  filter(Diverted == 1)
+
+str(div)
+```
+
+```{r}
+# non-diversions vs diversions
+ggplot(flights, aes(x=as.factor(Diverted) )) +
+  geom_bar(fill="darkblue")
+```
+
+```{r}
+# div & airlines 
+ggplot(div, aes(x=Operating_Airline.))+ 
+  geom_bar(fill = "red")
+```
+
+```{r}
+# div & origin 
+ggplot(div, aes(x=Origin))+ 
+  geom_bar(fill = "darkgreen")
+```
+
+```{r}
+# div & cancellation
+ggplot(div, aes(x=as.factor(Cancelled)))+ 
+  geom_bar(fill = "orange") 
+# makes sense b/c flights would be diverted before possible cancellation ? 
+```
+
+# Splitting into sets
+```{r}
+set.seed(123)
+flights <- flights %>% mutate(id = row_number())
+train <- flights %>% sample_frac(0.6)
+remaining <- anti_join(flights, train, by = "id")
+test <- remaining %>% sample_frac(0.5)
+validation <- anti_join(remaining, test, by = "id")
+```
+
+# Logistic Model
+```{r}
+model <- glm(as.factor(Diverted)~DepDelay, data = train, family = binomial)
+summary(model)
+```

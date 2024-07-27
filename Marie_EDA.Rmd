@@ -1,0 +1,172 @@
+---
+title: "Flight Data EDA"
+output:
+  html_document:
+    df_print: paged
+author: "Marie Bennett"
+date: "2024-07-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Reading in Data
+```{r}
+flight <- read_csv("../Data_Files/Flights_Wrangled_Old.csv", col_names=TRUE)
+head(flight)
+```
+
+# Selecting Possible Variables of Interest
+```{r}
+#selecting any variables that might be useful
+flight_sub <- flight %>%
+  select(Year, DayofMonth, DayOfWeek, Operating_Airline., Origin, OriginCityName, OriginState, OriginStateName, Dest, DestCityName, DestState, DestStateName, DepDelay, DepDelayMinutes, DepDel15, ArrDelay, ArrDelayMinutes, ArrDel15, Cancelled, Diverted, ActualElapsedTime, AirTime, Distance, DistanceGroup, CarrierDelay, WeatherDelay, NASDelay,SecurityDelay, LateAircraftDelay)
+```
+
+## Numeric Variables
+```{r}
+#numeric variable subset (not included: specific delays)
+flight_num <- flight_sub %>%
+  select(DepDelay, DepDelayMinutes, ArrDelay, ArrDelayMinutes, ActualElapsedTime, AirTime, Distance)
+summary(flight_num)
+```
+```{r}
+#histograms of each numeric variable
+apply(X=flight_num, MARGIN=2, FUN=hist)
+```
+**Findings:**\
+  - all numeric variables are right skewed\
+  - might be able to transform ActualElapsedTime, AirTime, and Distance variable, but probably not the delay and arrival variables\
+  - **idea**: using PCA might still work since normality is not required\
+  
+```{r}
+#correlation matrix of numeric variables
+cor(flight_num, use="complete.obs")
+```
+
+**Findings:**\
+  - DepDelay, DepDelayMinutes, ArrDelay, and ArrDelayMinutes highly correlated (choosing to keep only DepDelay and ArrDelay)\
+  - ActualElapsedTime, AirTime, and Distance highly correlated (choosing to keep AirTime and Distance)\
+  - neither group is strongly correlated with the other
+  - **idea**: could use PCA to break into a delay and a time component, this will get rid of correlation and help reduce the number of variables being investigated.\
+  
+```{r}
+#delay type subset
+flight_delay <- flight_sub %>%
+  select(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay)
+flight_delay <- na.omit(flight_delay)
+head(flight_delay)
+```
+```{r}
+summary(flight_delay)
+```
+**Findings:**\
+  - skewed distributions\
+  - clear high-end outliers\
+  - **idea**: may not be able to use the minutes, but could create binary variables to indicate the type of delay\
+
+## Categorical Variables
+```{r}
+#categorical variables subset
+#filtered to only include flights between the top 10 airports
+flight_cat <- flight_sub %>%
+  select(Year, DayofMonth, DayOfWeek, Operating_Airline., Origin, OriginCityName, OriginState, OriginStateName, Dest, DestCityName, DestState, DestStateName, DepDel15, ArrDel15, Cancelled, Diverted, DistanceGroup) %>%
+  filter((Dest == "ATL" | Dest == "DFW" | Dest == "DEN" | Dest == "ORD" | Dest == "LAX" | Dest == "CLT" | Dest == "MCO" | Dest == "LAS" | Dest == "PHX" | Dest == "MIA") & (Origin == "ATL" | Origin == "DFW" | Origin == "DEN" | Origin == "ORD" | Origin == "LAX" | Origin == "CLT" | Origin == "MCO" | Origin == "LAS" | Origin == "PHX" | Origin == "MIA"))
+
+#frequency table of each variable
+apply(X=flight_cat, MARGIN=2, FUN=table)
+```
+**Findings:**\
+  - lose a lot of data with this filtering in the Operating_Airline variable for Alaska Airlines, Aligient Air, and maybe JetBlue\
+  - DepDel15 and ArrDel15 do not have the same numbers with DepDel15 being slightly higher\
+  - the number of cancelled and diverted flights is much smaller than not, but still enough to investigated differences\
+
+```{r}
+#possible predictors: DepDel15, ArrDel15, Cancelled, Diverted
+#other variables: Year, DayofMonth, DayOfWeek, Operating_Airline., Origin, OriginCityName, OriginState, OriginStateName, Dest, DestCityName, DestState, DestStateName, DistanceGroup
+
+#two-way frequency tables with Operating_Airline.
+table(flight_cat$DepDel15, flight_cat$Operating_Airline.)
+table(flight_cat$ArrDel15, flight_cat$Operating_Airline.)
+table(flight_cat$Cancelled, flight_cat$Operating_Airline.)
+table(flight_cat$Diverted, flight_cat$Operating_Airline.)
+
+#two-way frequency tables with Origin
+table(flight_cat$DepDel15, flight_cat$Origin)
+table(flight_cat$ArrDel15, flight_cat$Origin)
+table(flight_cat$Cancelled, flight_cat$Origin)
+table(flight_cat$Diverted, flight_cat$Origin)
+
+#two-way frequency tables with Dest
+table(flight_cat$DepDel15, flight_cat$Dest)
+table(flight_cat$ArrDel15, flight_cat$Dest)
+table(flight_cat$Cancelled, flight_cat$Dest)
+table(flight_cat$Diverted, flight_cat$Dest)
+
+#two-way frequency tables with DistanceGroup
+table(flight_cat$DepDel15, flight_cat$DistanceGroup)
+table(flight_cat$ArrDel15, flight_cat$DistanceGroup)
+table(flight_cat$Cancelled, flight_cat$DistanceGroup)
+table(flight_cat$Diverted, flight_cat$DistanceGroup)
+```
+**Findings:**\
+  - lack of data for certain airlines\
+  - some origin airports might have more 15+ minute departure delays than others (proportionally)\
+  - different origin airports generally have similar numbers in cancelled and diverted flights\
+  - nothing of note for destination airports\
+  - distance group 7 is very high in 15+ minute delays (maybe not, group 6 just has less values)\
+  - possibly noting of note for distance groups
+
+```{r}
+# bar graph of days of the week split by cancellations
+ggplot(flight, aes(x=DayOfWeek, fill=factor(Cancelled))) +
+  geom_bar(position="dodge")
+
+```
+```{r}
+# bar graph of days of the week split by 15 + minute delays
+ggplot(flight, aes(x=DayOfWeek, fill=factor(DepDel15))) +
+  geom_bar(position="dodge")
+```
+
+```{r}
+# bar graph of quarters split by cancellations
+ggplot(flight, aes(x=Quarter, fill=factor(Cancelled))) +
+  geom_bar(position="dodge")
+```
+```{r}
+# bar graph of quarters split by 15 + minute delays
+ggplot(flight, aes(x=Quarter, fill=factor(DepDel15))) +
+  geom_bar(position="dodge")
+```
+# July 9 Code
+Two-way ANOVA with DepDelayMinutes as the response variable and Origin and DayOfWeek as the predictor variables.
+```{r}
+#exploration of the data
+flight %>%
+  group_by(Origin, DayOfWeek) %>%
+  summarise(mean = mean(DepDelayMinutes, na.rm=TRUE),
+            sd = sd(DepDelayMinutes, na.rm=TRUE),
+            n = n())
+```
+
+```{r}
+#checking assumptions
+#independence of observations, equal variance of errors, normality of errors
+lm_flight <- lm(DepDelayMinutes ~ factor(Origin) + factor(DayOfWeek), data = flight)
+plot(lm_flight)
+# constant variance might pass, but normality does not (is there a transformation for this?)
+```
+
+```{r}
+#two-way ANOVA
+origin_week_aov <- aov(DepDelayMinutes ~ factor(Origin) + factor(DayOfWeek), data = flight)
+summary(origin_week_aov)
+```
+```{r}
+ggplot(flight, aes(Origin, DepDelayMinutes, fill=factor(DayOfWeek))) +
+  geom_col(position="dodge")
+```
+
