@@ -1,0 +1,112 @@
+---
+title: "Day of Week Analysis"
+output:
+  html_document:
+    df_print: paged
+author: "Marie Bennett"
+date: "2024-07-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(viridis)
+```
+
+# Read in data for visuals
+```{r}
+#data for visuals
+flight <- read_csv("./Data_Files/Flights_Wrangled.csv", col_names=TRUE)
+
+#filter for observations for depdelay over 0
+flight_fil <- flight %>%
+  filter(DepDelayMinutes > 0)
+
+#change dayofweek to a factor variable 
+flight_fil <- flight_fil %>%
+  mutate(DayOfWeek = as.factor(DayOfWeek))
+```
+
+# Read in data for analysis
+```{r}
+#data for analysis
+flight_train <- read_csv("./Data_Files/Flights_Train.csv", col_names=TRUE)
+
+#filter for observations for depdelay over 0
+flight_train_fil <- flight_train %>%
+  filter(DepDelayMinutes > 0)
+
+#change dayofweek to a factor variable 
+flight_train_fil <- flight_train_fil %>%
+  mutate(DayOfWeek = as.factor(DayOfWeek))
+```
+# ANOVA for DepDelayMinutes and DayOfWeek
+```{r}
+#one-way anova of DayOfWeek and DepDelayminutes
+week_flight_aov <- aov(DepDelayMinutes ~ DayOfWeek, data=flight_train_fil)
+
+qqnorm(residuals(week_flight_aov))
+qqline(residuals(week_flight_aov))
+#normality assumption not passed
+```
+
+# Kruskal-Wallis test for DepDelayMinutes and DayOfWeek
+```{r}
+#non-parametric test for ANOVA (when normal assumption is not met)
+kruskal.test(DepDelayMinutes ~ DayOfWeek, data=flight_train_fil)
+#significant p-value
+
+#check shape of distribution
+ggplot(flight_train_fil, aes(x=DepDelayMinutes)) +
+  geom_histogram() +
+  facet_wrap(vars(DayOfWeek))
+#similar distributions
+
+#test for equal variances
+fligner.test(DepDelayMinutes ~ DayOfWeek, data=flight_train)
+#unequal variances
+```
+# Post-Hoc Test for Kruskal-Wallis
+```{r}
+#Dunn's test (post-hoc)
+library(dunn.test)
+dunn.test(flight_train_fil$DepDelayMinutes, flight_train_fil$DayOfWeek, kw=F, method="bonferroni")
+#significance level = 0.00001
+```
+# Plots
+```{r}
+#check medians of each day of the week
+flight_median_fil <- flight_train_fil %>%
+  group_by(DayOfWeek) %>%
+  summarise(median = median(DepDelayMinutes))
+
+#plot of DepDelayMinutes per DayOfWeek
+ggplot(data=flight_median_fil, aes(x=DayOfWeek, y=median)) +
+  geom_col(fill="#3873b7") +
+  labs(x="Day of Week", y="Median Departure Delay (min)",
+           title="Median Departure Delay per Day of the Week") +
+  scale_x_discrete(labels=c("Mon", "Tue", "Wed", "Thu",
+                              "Fri", "Sat", "Sun")) +
+  theme_minimal()
+```
+
+```{r}
+#medians of DayOfWeek and Airline
+flight_median_fil2 <- flight_train_fil %>%
+  group_by(Airline, DayOfWeek) %>%
+  summarise(median = median(DepDelayMinutes),
+            n = n())
+
+#heatmap of DepDelayMinutes per Airline and DayOfWeek
+ggplot(flight_median_fil2, aes(x=DayOfWeek, y=Airline, fill = median)) +
+  geom_tile() +
+  scale_fill_viridis(option = "B", direction=-1, name="Median Departure Delay (min)") +
+  labs(title = "Median Departure Delay per Airline and Day of the Week",
+       x = "Day of Week",
+       y = "Airline") +
+  theme_minimal() +
+  #theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels=c("Mon", "Tue", "Wed", "Thu",
+                              "Fri", "Sat", "Sun")) +
+  scale_y_discrete(labels=c("American", "Alaska", "JetBlue", "Delta", "Frontier", "Allegiant", "Hawaiian", "Spirit", "United", "Southwest"))
+```

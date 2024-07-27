@@ -1,0 +1,54 @@
+---
+title: "Airlines_EDA"
+output: pdf_document
+author: "Sarah Arnold"
+date: "2024-07-17"
+---
+
+
+# Reading in the data: 
+```{r}
+flights <- read.csv("./Data_Files/Flights_Wrangled.csv")
+```
+
+# Loading libraries:
+```{r}
+library(ggplot2)
+library(dplyr)
+library(PMCMRplus)
+```
+
+# Converting Airline to factor 
+```{r}
+flights <- flights %>% 
+  mutate(Airline = as.factor(IATA_Code_Operating_Airline))
+```
+
+# Creating bar chart of average delay per airline 
+```{r}
+avg_delay <- flights %>%
+  group_by(Airline) %>%
+  summarise(avg_delay_min = mean(DepDelayMinutes))
+
+avg_delay <- avg_delay %>%
+  mutate(num_flights = table(flights$Airline)[Airline])
+
+ggplot(avg_delay, aes(x = reorder(Airline, avg_delay_min), y = avg_delay_min)) +
+  geom_bar(stat = "identity", fill="#3873b7") +
+  labs(x = "Airline", y = "Avg Departure Delay (mins)", title = "Average Departure Delay per Airline") +
+  scale_x_discrete(labels=c("Alaska", "Delta", "United", "Hawaiian", "Southwest", "Spirit", "American", "Allegiant", "Frontier", "JetBlue")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Testing significance 
+```{r}
+train <- read.csv("./Data_Files/Flights_Train.csv")
+train_aov <- aov(DepDelayMinutes ~ factor(Airline), data = train)
+
+summary(train_aov)
+
+kruskal.test(DepDelayMinutes ~ factor(Airline), data = train)
+
+gamesHowellTest(train_aov)
+```

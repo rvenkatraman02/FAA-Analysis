@@ -1,0 +1,125 @@
+---
+title: "Time of Day Analysis"
+output: html_document
+author: "Rohan Venkatraman"
+date: "2024-07-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(ggpubfigs)
+library(tidyverse)
+library(viridis)
+library(stringr)
+```
+
+```{r, warning=FALSE, message=FALSE}
+df_all <- read.csv("./Data_Files/Flights_Wrangled.csv")
+df <- df_all %>% filter(DepDelayMinutes > 0)
+```
+
+```{r}
+flight_train <- read.csv("./Data_Files/Flights_Train.csv")
+
+# filter for observations for depdelay over 0
+flight_train_fil <- flight_train %>%
+  filter(DepDelayMinutes > 0)
+```
+
+
+# Bar Chart Median Delay Time per Time Block
+```{r}
+# Create df for plot
+med_delayblk <- df %>% group_by(DepTimeBlk) %>% summarise(Median_delay = median(DepDelayMinutes)) %>%
+  mutate(Time_Block_Label = str_replace_all(DepTimeBlk, "(\\d{2})(\\d{2})-(\\d{2})(\\d{2})", "\\1:\\2 - \\3:\\4"))
+```
+
+```{r}
+ggplot(med_delayblk, aes(x=Time_Block_Label, y=Median_delay)) + geom_bar(stat="identity", fill="#3873b7") +
+  labs(title = "Median Departure Delay per Time of Day",
+       x = "Time of Day",
+       y = "Median Departure Delay (min)") + 
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle=45, hjust=1),
+    axis.title.y = element_text(vjust=0.5),
+    plot.margin = unit(c(1,1,1,2), "lines")
+  ) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, max(med_delayblk$Median_delay) + 2))
+```
+
+
+# Heatmap Median Delay per Airline & Time Block
+```{r message=FALSE}
+# Create df for heatmap
+airline_delay_timeblk <- df %>% group_by(IATA_Code_Operating_Airline, DepTimeBlk) %>% summarise(Median_delay = median(DepDelayMinutes)) %>%
+  mutate(Time_Block_Label = str_replace_all(DepTimeBlk, "(\\d{2})(\\d{2})-(\\d{2})(\\d{2})", "\\1:\\2 - \\3:\\4"))
+```
+
+```{r}
+ggplot(airline_delay_timeblk, aes(x = Time_Block_Label, y = IATA_Code_Operating_Airline, fill = Median_delay)) +
+  geom_tile() +
+  labs(title = "Median Departure Delay per Airline and Time of Day",
+       x = "Time of Day",
+       y = "Airline",
+       fill = "Median Departure Delay (min)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_viridis(option="plasma", direction=-1) +
+  scale_y_discrete(labels=c("American", "Alaska", "JetBlue", "Delta", "Frontier", "Allegiant", "Hawaiian", "Spirit", "United", "Southwest"))
+```
+
+# Frequency of Flights by Time of Day
+```{r}
+# Create df for total flight counts
+flight_counts <- df_all %>% group_by(DepTimeBlk) %>% summarize(Total = n(),
+                                                           Delays = sum(DepDelayMinutes > 0),
+                                                           On_Time_Count = sum(DepDelayMinutes == 0)) %>%
+  mutate(Time_Block_Label = str_replace_all(DepTimeBlk, "(\\d{2})(\\d{2})-(\\d{2})(\\d{2})", "\\1:\\2 - \\3:\\4"))
+
+# flight_counts_delays <- df %>% group_by(DepTimeBlk) %>% summarize(Median_delay = median(DepDelayMinutes)) %>%
+#   mutate(Time_Block_Label = str_replace_all(DepTimeBlk, "(\\d{2})(\\d{2})-(\\d{2})(\\d{2})", "\\1:\\2 - \\3:\\4"))
+```
+
+```{r}
+ggplot(flight_counts, aes(x = Time_Block_Label)) +
+  geom_bar(aes(y = Total, fill = "Number of Flights"), stat = "identity") +
+  geom_line(aes(y = Delays, color = "Number of Delays"), size = 1, group = 1) +
+  scale_fill_manual(name = "", values = c("Number of Flights" = "#3873b7")) +
+  scale_color_manual(name = "", values = c("Number of Delays" = "red")) +
+  scale_y_continuous(
+    name = "Number of Flights",
+    limits = c(0, max(flight_counts$Total) + 20000),  # Adjusting the limits for better visualization
+    expand = c(0, 0),
+    sec.axis = sec_axis(~ ., name = "Number of Delays", breaks = seq(0, max(flight_counts$Delays, na.rm = TRUE), by = 25000))
+  ) +
+  labs(
+    title = "Frequency of Flights and Delays Throughout the Day",
+    x = "Time of Day",
+    y = "Number of Flights"
+  ) + 
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.y = element_text(vjust = 0.5),
+    legend.position = "right" 
+  )
+```
+
+# ANOVA Testing for Time of Day
+```{r}
+#non-parametric test for ANOVA (when normal assumption is not met)
+kruskal.test(DepDelayMinutes ~ DepTimeBlk, data=flight_train_fil)
+#significant p-value
+```
+
+## Post-Hoc Time Blocks Significance Testing
+```{r}
+#Dunn's test (post-hoc)
+library(dunn.test)
+dunn.test(flight_train_fil$DepDelayMinutes, flight_train_fil$DepTimeBlk, kw=F, method="bonferroni", alpha = 0.00001)
+```
+

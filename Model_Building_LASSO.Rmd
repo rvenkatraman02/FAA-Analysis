@@ -1,0 +1,108 @@
+---
+title: "LASSO Model Building"
+author: "Marie Bennett & Sterling Hayden"
+date: "2024-07-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(glmnet)
+```
+
+
+```{r}
+flight_train <- read_csv("./Data_Files/Flights_Train.csv", col_names=TRUE)
+flight_test <- read_csv("./Data_Files/Flights_Test.csv", col_names=TRUE)
+head(flight_train)
+```
+
+
+# Data Wrangling
+```{r}
+#imputing missing values with 0
+flight_train1 <- flight_train %>%
+  mutate(across(c(16:20), ~if_else(is.na(.), 0, .)))
+
+flight_test1 <- flight_test %>%
+  mutate(across(c(16:20), ~if_else(is.na(.), 0, .)))
+
+#setting variables of interest
+model <- DepDelayMinutes ~ factor(Year) + factor(Quarter) + factor(DayofMonth) + factor(DayOfWeek) + Airline + Origin + Dest + DepTimeBlk + TaxiOut + ArrTimeBlk + Distance + factor(CarrierDelay_flag) + factor(WeatherDelay_flag) + factor(NASDelay_flag) + factor(SecurityDelay_flag) + factor(LateAircraftDelay_flag)
+
+#restructuring the training data with indicator variables
+train_x <- model.matrix(model, data = flight_train1)[,-1]
+train_y <- flight_train1$DepDelayMinutes
+```
+
+# Initial Regularized Regression Models
+```{r}
+#LASSO regression of variables of interest
+
+flight_lasso_cv <- cv.glmnet(x = train_x, y = train_y, alpha=1)
+plot(flight_lasso_cv, xvar="lambda")
+
+#investigating important variables
+coef(flight_lasso_cv, s = c(flight_lasso_cv$lambda.min, flight_lasso_cv$lambda.1se))
+```
+
+```{r}
+#Elastic net regression of variables of interest
+flight_en_cv <- cv.glmnet(x = train_x, y = train_y, alpha=0.5)
+plot(flight_en_cv, xvar="lambda")
+
+#investigating important variables
+coef(flight_en_cv, s = c(flight_en_cv$lambda.min, flight_en_cv$lambda.1se))
+```
+
+# Regularized Regression Models with Reduced Variables
+```{r}
+model.drop <- DepDelayMinutes ~ factor(DayOfWeek) + Airline + Origin + Dest + DepTimeBlk + Distance
+
+train_x_drop <- model.matrix(model.drop, data = flight_train1)[,-1]
+train_y_drop <- flight_train1$DepDelayMinutes
+
+test_x_drop <- model.matrix(model.drop, data = flight_test1)[,-1]
+test_y_drop <- flight_test1$DepDelayMinutes
+```
+
+
+```{r}
+#LASSO regression with reduced variables of interest
+
+flight_lasso_cv_drop <- cv.glmnet(x = train_x_drop, y = train_y_drop, alpha=1)
+plot(flight_lasso_cv_drop, xvar="lambda")
+print(flight_lasso_cv_drop$lambda.min)
+print(flight_lasso_cv_drop$lambda.1se)
+
+#altered lambda values
+flight_lasso_cv_drop$lambda.halfse <- (flight_lasso_cv_drop$lambda.1se - flight_lasso_cv_drop$lambda.min)/2
+flight_lasso_cv_drop$lambda.75se <- ((flight_lasso_cv_drop$lambda.1se - flight_lasso_cv_drop$lambda.min)/4) * 3
+flight_lasso_cv_drop$lambda.90se <- ((flight_lasso_cv_drop$lambda.1se - flight_lasso_cv_drop$lambda.min)/10) * 9
+
+#checking for the important variables
+options(max.print=1000000)
+coef(flight_lasso_cv_drop, s = c( flight_lasso_cv_drop$lambda.halfse, flight_lasso_cv_drop$lambda.75se, flight_lasso_cv_drop$lambda.90se, flight_lasso_cv_drop$lambda.1se))
+```
+
+```{r}
+#Elastic net regression with reduced variables
+flight_en_cv_drop <- cv.glmnet(x = train_x_drop, y = train_y_drop, alpha=0.5)
+plot(flight_en_cv_drop, xvar="lambda")
+
+#investigating important variables
+coef(flight_en_cv_drop, s = c(flight_en_cv_drop$lambda.min, flight_en_cv_drop$lambda.1se))
+```
+
+
+```{r}
+# Checking predictions, even though using for explanatory model
+test_pred <- predict(flight_lasso_cv_drop, s = flight_lasso_cv_drop$lambda.90se, newx = test_x_drop)
+
+r_squared_test <- 1 - sum((test_y_drop - test_pred)^2) / sum((test_y_drop - mean(test_y_drop))^2)
+```
+
+
+
+
+
