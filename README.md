@@ -4,7 +4,7 @@
 **Team**: *Sarah Arnold, Marie Bennett, Sterling Hayden, Fred Lindsey, Rohan Venkatraman*
 
 ## Project Overview
-As a group of five students in the Institute for Advanced Analytics, we aimed to analyze FAA data for our summer practicum. This project involves an in-depth analysis of recent US commercial air travel from April 2022 to March 2023. Our objective was to deliver insights and findings that would be valuable to stakeholders in the form of descriptive insights, inferential findings, and visualizations. After approaching the project from an open-ended perspective, we narrowed our scope to focus only on flight delays.
+Our summer practicum project analyzed flight delays within the top 10 US airlines at the top 10 US airports. With a dataset spanning from April 2022 to March 2023, we aimed to provide meaningful insights and recommendations for stakeholders, specifically targeting flight delay patterns. Our analysis was driven by the need to understand how airlines, days of the week, and times of day influence departure delays. Leveraging statistical and machine learning models, we identified key patterns and proposed recommendations to improve flight scheduling and reduce delays. This project not only showcased our analytical capabilities but also enhanced our teamwork and communication skills.
 
 ## Key Findings
 Using a LASSO regression model, we determined that there were three key features that impacted **Departure Delays**:
