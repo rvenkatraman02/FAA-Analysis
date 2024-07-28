@@ -1,4 +1,4 @@
-# FAA-Analysis
+# FAA Flights Analysis
 ***Analyzing Flight Delays from the Top 10 US Airlines at 10 of the Top US Airports***
 
 **Team**: *Sarah Arnold, Marie Bennett, Sterling Hayden, Fred Lindsey, Rohan Venkatraman*
